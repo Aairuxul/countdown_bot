@@ -114,7 +114,7 @@ async def before_update():
 )
 @app_commands.describe(
     titre="Titre du compte à rebours (ex: Sortie de GTA VI)",
-    date="Date cible au format JJ-MM-AAAA (ex: 09-05-2026)",
+    date="Date cible au format JJ/MM/AAAA (ex: 09/05/2026)",
     heure="Heure cible au format HH:MM:SS en UTC (ex: 23:59:00, défaut 00:00:00)",
 )
 async def countdown_cmd(
@@ -125,7 +125,7 @@ async def countdown_cmd(
 ):
     # Parse de la date/heure
     try:
-        target = datetime.strptime(f"{date} {heure}", "%d-%m-%Y %H:%M:%S").replace(
+        target = datetime.strptime(f"{date} {heure}", "%d/%m/%Y %H:%M:%S").replace(
             tzinfo=timezone.utc
         )
     except ValueError:
@@ -154,6 +154,20 @@ async def countdown_cmd(
         "title": titre,
     }
 
+# ──────────────────────────────────────────────
+#  Autocomplete for /stop_countdown
+# ──────────────────────────────────────────────
+async def countdown_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> list[app_commands.Choice[str]]:
+    """Propose les titres des comptes à rebours actifs."""
+    choices = []
+    for msg_id, data in countdowns.items():
+        title = data["title"]
+        if current.lower() in title.lower():
+            choices.append(app_commands.Choice(name=title, value=str(msg_id)))
+    return choices[:25]  # Discord limite à 25 choix
 
 # ──────────────────────────────────────────────
 #  Commande slash  /stop_countdown
@@ -162,20 +176,22 @@ async def countdown_cmd(
     name="stop_countdown",
     description="Arrête le compte à rebours du message spécifié."
 )
-@app_commands.describe(message_id="L'ID du message contenant le compte à rebours")
-async def stop_countdown_cmd(interaction: discord.Interaction, message_id: str):
+@app_commands.describe(titre="Nom du compte à rebours à arrêter")
+@app_commands.autocomplete(titre=countdown_autocomplete)
+async def stop_countdown_cmd(interaction: discord.Interaction, titre: str):
     try:
-        mid = int(message_id)
+        mid = int(titre)
     except ValueError:
-        await interaction.response.send_message("❌ ID de message invalide.", ephemeral=True)
+        await interaction.response.send_message("❌ Sélectionne un compte à rebours dans la liste.",ephemeral=True)
         return
 
     if mid in countdowns:
+        name = countdowns[mid]["title"]
         countdowns.pop(mid)
-        await interaction.response.send_message("✅ Compte à rebours arrêté.", ephemeral=True)
+        await interaction.response.send_message("✅ Compte à rebours **{name}** arrêté.", ephemeral=True)
     else:
         await interaction.response.send_message(
-            "❌ Aucun compte à rebours actif avec cet ID.", ephemeral=True
+            "❌ Aucun compte à rebours actif avec ce nom.", ephemeral=True
         )
 
 
